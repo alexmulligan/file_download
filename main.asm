@@ -50,9 +50,13 @@ start:
             MOVB #0, DDRH           ; configure port H (dip switches) as inputs
             
 mainloop:
-            ; TODO: blank whole buffer
-
+bufferClear:
+            LDY #buffer             ; initialize buffer pointer
             LDAA #4                 ; initialize buffer counter
+            BCLR A, Y, $FF          ; this should clear the buffer :)
+            DBNE A, bufferClear     ; loop this shit
+
+            LDAA #4                 ; reset buffer counter
             LDAB #8                 ; initialize client counter
             LDY #buffer             ; initialize buffer pointer
             MOVB PTH, inputs        ; load DIP switches state into memory
@@ -103,5 +107,5 @@ delay1ms:                           ; TODO: write a comment here
 
             PULX                    ; restore registers previous state from stack
             PULD                    ; ..
-            JSR
+            RTS
         
