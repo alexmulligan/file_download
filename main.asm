@@ -50,10 +50,11 @@ start:
             MOVB #0, DDRH           ; configure port H (dip switches) as inputs
             
 mainloop:
+            ; TODO: blank whole buffer
+
             LDAA #4                 ; initialize buffer counter
             LDAB #8                 ; initialize client counter
             LDY #buffer             ; initialize buffer pointer
-            ; TODO: blank whole buffer
             MOVB PTH, inputs        ; load DIP switches state into memory
 
 pollingLoop:
@@ -68,19 +69,39 @@ pollingLoop:
 
 lowInput:
             DBNE B, pollingLoop     ; update client counter, and if all scanned, continue
-            
-allScanned:
-            LDY #buffer             ; reset buffer pointer
-            ;JSR display             ; call display subroutine to display buffer contents
-            BRA mainloop
 
-            END
+allScanned:
+            JSR display             ; call display subroutine to display buffer contents
+            BRA mainloop
+            
+
     ; display - subroutine to display contents of buffer on 7seg displays
     ;
     ; Inputs:
     ;       Buffer -> pointer to memory containing data
     ;
 display:
-            ;
+            PSHD                    ; store registers previous state to stack
+            PSHX                    ; ..          
+
+            LDAB #%11101110         ; initialize cathode enable byte
+            LDY #buffer             ; initialize buffer pointer
+            SEC                     ; TODO: write a comment for this "set carry flag"
+
+nextDigit:
+            BSET PTP, $0F           ; disable all 7seg displays
+            LDAA 1, Y+              ; load contents at buffer pointer into working register and move pointer to next location
+            STAA PORTB              ; write buffer contents to display
+            STAB PTP                ; turn on next display
+            
+            LDX #8000
+delay1ms:                           ; TODO: write a comment here
+            DBNE X, delay1ms
+
+            ROLB                    ; rotate cathode enable byte to get ready for next digit
+            BCS nextDigit:          ; if more digits need to be displayed, branch to nextDigit, else continue
+
+            PULX                    ; restore registers previous state from stack
+            PULD                    ; ..
             JSR
         
