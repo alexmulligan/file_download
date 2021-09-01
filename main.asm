@@ -50,15 +50,15 @@ start:
             MOVB #0, DDRH           ; configure port H (dip switches) as inputs
             
 mainloop:
-bufferClear:
             LDY #buffer             ; initialize buffer pointer
             LDAA #4                 ; initialize buffer counter
-            BCLR A, Y, $FF          ; this should clear the buffer :)
-            DBNE A, bufferClear     ; loop this shit
+bufferClear:
+            BCLR 1, Y+, $FF          ; clear contents of buffer
+            DBNE A, bufferClear     ; loop through entire buffer
 
+            LDY #buffer             ; reset buffer pointer
             LDAA #4                 ; reset buffer counter
             LDAB #8                 ; initialize client counter
-            LDY #buffer             ; initialize buffer pointer
             MOVB PTH, inputs        ; load DIP switches state into memory
 
 pollingLoop:
@@ -90,7 +90,7 @@ display:
 
             LDAB #%11101110         ; initialize cathode enable byte
             LDY #buffer             ; initialize buffer pointer
-            SEC                     ; TODO: write a comment for this "set carry flag"
+            SEC                     ; set carry flag to make sure next digit is displayed
 
 nextDigit:
             BSET PTP, $0F           ; disable all 7seg displays
@@ -98,12 +98,12 @@ nextDigit:
             STAA PORTB              ; write buffer contents to display
             STAB PTP                ; turn on next display
             
-            LDX #8000
-delay1ms:                           ; TODO: write a comment here
-            DBNE X, delay1ms
+            LDX #8000               ; set delay counter to 8000
+delay1ms:                           
+            DBNE X, delay1ms        ; delay for 8000 * 125ns = 1ms
 
             ROLB                    ; rotate cathode enable byte to get ready for next digit
-            BCS nextDigit:          ; if more digits need to be displayed, branch to nextDigit, else continue
+            BCS nextDigit           ; if more digits need to be displayed, branch to nextDigit, else continue
 
             PULX                    ; restore registers previous state from stack
             PULD                    ; ..
