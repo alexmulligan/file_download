@@ -22,15 +22,10 @@ ROMStart    EQU  $4000  ; absolute address to place my code/constant data
  ; ************* Enter your data here:
 
             ORG $3000		; starting at address $3000, insert data
-table:
-            dc.b $3F, $06, $5B, $4F, $66, $6D, $7D, $07
-
-buffer:
-            ds.b 4
-
-inputs:
-            ds.b 1
-
+counter:    dc.b 100
+            
+            ORG $FFF0
+            dc.w rti_isr
 
 ; code section
             ORG   ROMStart
@@ -40,69 +35,34 @@ _Startup:
                                                                                                   
                                                                                                    
 ; ************* Enter your code here:            
-
-start:
-            BSET DDRP, $0F          ; configure pins P0-3 as input
-            BSET PTP, $0F           ; disable all 7seg displays
-            MOVB #$FF, DDRB         ; configure port B as output
-            MOVB #0, PORTB          ; turn all segments off 
-            MOVB #0, DDRH           ; configure port H (dip switches) as inputs
-            MOVB #$1, PEIH          ; enable only PB0 (PH0) to interrupt
-            BCLR PPSH, 1            ; set PH0 to be sensitive to falling edges of signal
-            CLI                     ; globally enable all interrupts
+init:
+            MOVB #$F, DDRP              ; configure port P3-0 as output                        
+            MOVB #$F, PTP               ; disable 7seg displays
+            BSET DDRJ, #2               ; configure PJ1 as output
+            BCLR PTJ, #2                ; enable LEDs
+            MOVB #1, DDRB               ; configure port B0 as output
+            BCLR PORTB, 1               ; turn LED0 off
+            MOVB #$68, RTICTL           ; configure RTI period
+            BSET CRGINT, #$80           ; enable RTI
+            CLI                         ; globally enable interrupts
 
 mainloop:
-            LDY #buffer             ; initialize buffer pointer
-            LDAB #%11101110         ; initialize cathode enable byte
-            SEC                     ; set carry flag to make sure next digit is displayed
+            BRA mainloop                ; do nothing in mainloop, and loop forever
 
-nextDigit:
-            BSET PTP, $0F           ; disable all 7seg displays
-            MOVB Y, PORTB           ; load contents at buffer pointer into display output
-            INY                     ; move buffer pointer to next location
-            STAB PTP                ; turn on next display
+
+rti_isr:
+            DEC counter                 ; decrement RTI counter
+            BNE after                   ; If not reached, skip code section
             
-            LDX #8000               ; set delay counter to 8000
-delay1ms:                           
-            DBNE X, delay1ms        ; delay for 8000 * 125ns = 1ms
-
-            ROLB                    ; rotate cathode enable byte to get ready for next digit
-            BCS nextDigit           ; if more digits need to be displayed, branch to nextDigit, else continue
-            BRA mainloop
-
-
-update_ISR:
-            ANDCC #$F0              ; reset flag register
-            LDX #table
-            LDY #buffer             ; initialize buffer pointer
-            LDAA #4                 ; initialize buffer counter
-bufferClear:
-            BCLR 1, Y+, $FF         ; clear contents of buffer
-            DBNE A, bufferClear     ; loop through entire buffer
-
-            LDY #buffer             ; reset buffer pointer
-            LDAA #4                 ; reset buffer counter
-            LDAB #7                 ; initialize client counter
-            MOVB PTH, inputs        ; load DIP switches state into memory
-
-clientLoop:
-            LSL inputs              ; shift dip switch input data left to move next switch bit into carry
-            BCC lowInput            ; if switch input is high, continue; else, skip code section
+            LDAA PORTB                  ; ..
+            EORA #1                     ; .. Toggle LED0
+            STAA PORTB                  ; ..
             
-            PSHB                    ; temporarily store client counter on stack
-            LDAB B, X               ; convert client counter-1 to 7seg through the lookup table
-            STAB 1, Y+              ; write 7seg value in buffer and move pointer to next buffer location
-            PULB                    ; restore client counter from stack
-            DBEQ A, allScanned      ; update buffer counter, and if buffer if full, skip to allScanned
+            LDAB #100                   ; .. 
+            STAB counter                ; Reset RTI counter
 
-lowInput:
-            DBNE B, clientLoop      ; update client counter, and if all scanned, continue
-
-allScanned:
+after:
+            BSET CRGFLG, $80            ; reset RT interrupt flag
             RTI
-
-
-; ************* interrupt vector section
-            ORG $FFCC               ; initialize vector address
-            dc.w update_ISR         ; $FFCC is address of address of ISR
-            END 
+            
+            END
